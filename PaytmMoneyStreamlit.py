@@ -1,15 +1,21 @@
+import os
 import streamlit as st
 import requests
 from urllib.parse import urlencode
 
-# --- 1. CONFIGURATION & CREDENTIALS ---
-st.set_page_config(page_title="Paytm Money Package-Free OAuth", layout="wide")
+# --- 1. CONFIGURATION & SECURE CREDENTIALS ---
+st.set_page_config(page_title="Paytm Money Secure REST OAuth", layout="wide")
 
-# Replace with your actual credentials from the Paytm Money Developer Console
-API_KEY = "your_paytm_money_api_key"
-API_SECRET = "your_paytm_money_api_secret"
+# Retrieve keys from environment variables
+API_KEY = os.environ.get("PAYTM_API_KEY")
+API_SECRET = os.environ.get("PAYTM_API_SECRET")
 
-# Ensure this matches the Redirect/Return URL in your console exactly
+# Safeguard check: Alert the user if the environment variables are missing
+if not API_KEY or not API_SECRET:
+    st.error("🔑 **Missing Credentials:** Please set `PAYTM_API_KEY` and `PAYTM_API_SECRET` in your environment or `.streamlit/secrets.toml` file.")
+    st.stop()
+
+# Ensure this matches the Redirect/Return URL in your developer console exactly
 REDIRECT_URL = "http://localhost:8501/" 
 
 # API Base URL Endpoint Layouts
@@ -21,12 +27,11 @@ if "jwt_token" not in st.session_state:
     st.session_state.jwt_token = None
 
 # --- UI Header ---
-st.title("🛡️ Paytm Money Native OAuth2 Handshake")
-st.caption("A pure REST implementation running fully within Streamlit's state architecture.")
+st.title("🛡️ Secure Paytm Money OAuth2 Handshake")
+st.caption("Credentials loaded safely from environment variables.")
 st.markdown("---")
 
 # --- 2. THE HANDSHAKE: CATCHING RE-ENTRY PARAMETERS ---
-# Detect query arguments pushed dynamically by Paytm's redirect browser routing
 query_params = st.query_params
 
 if "requestToken" in query_params and not st.session_state.jwt_token:
@@ -35,7 +40,6 @@ if "requestToken" in query_params and not st.session_state.jwt_token:
 
     with st.spinner("Exchanging token for secure JWT Session..."):
         try:
-            # Paytm Money token generation uses the /accounts/v2/gettoken endpoint
             token_endpoint = f"{API_BASE_URL}/accounts/v2/gettoken"
             
             payload = {
@@ -49,11 +53,9 @@ if "requestToken" in query_params and not st.session_state.jwt_token:
             
             if response.status_code == 200:
                 response_data = response.json()
-                # Store the Access JWT inside the app context state
                 st.session_state.jwt_token = response_data.get("access_token")
                 
                 st.success("🔒 Authorization Completed! Your credentials are now secured.")
-                # Clear URL parameters to prevent redundant calls on refresh
                 st.query_params.clear()
                 st.rerun()
             else:
@@ -68,14 +70,12 @@ with st.sidebar:
     if not st.session_state.jwt_token:
         st.warning("⚠️ Access Status: Unauthorized")
         
-        # Step 1: Formulate the explicit authorization login URL discoverable pattern
         auth_params = {
             "apiKey": API_KEY,
             "state": "streamlit_handshake_flow"
         }
         discovery_login_url = f"{AUTH_BASE_URL}?{urlencode(auth_params)}"
         
-        # UI Button Action Trigger Container for Client Execution Redirect
         st.markdown(
             f'<a href="{discovery_login_url}" target="_self" style="text-decoration:none;">'
             f'<div style="background-color:#00baf2;color:white;text-align:center;padding:12px;border-radius:6px;font-weight:bold;cursor:pointer;">'
@@ -113,7 +113,7 @@ if st.session_state.jwt_token:
                         st.metric(label="Total Unique Assets", value=len(holdings_list))
                         st.dataframe(holdings_list, use_container_width=True)
                     else:
-                        st.info("Authenticated successfully, but your DEMAT portfolio currently contains no delivery shares.")
+                        st.info("Authenticated successfully, but your portfolio currently contains no delivery shares.")
                     
                     with st.expander("Show Complete API JSON Metadata"):
                         st.json(data)
